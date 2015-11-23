@@ -26,14 +26,12 @@ public class PrepareData {
 
     public static JavaPairRDD<Long, Long> defineJump(JavaPairRDD<Long[], Long> tsBoundaries) {
 
-        return tsBoundaries.filter(pair -> pair._2 > 100000000)
+        return tsBoundaries.filter(pair -> pair._2 > 300000)
                 .mapToPair(pair -> new Tuple2<>(pair._1[1], pair._1[0]));
     }
 
     // (min, max)
     public static List<Long[]> defineInterval(JavaPairRDD<Long, Long> tsJump, Long firstElement, Long lastElement, long windows) {
-
-        tsJump.foreach(pair -> System.out.println(pair._1 + "----------" + pair._2));
         List<Long> flatten = tsJump.flatMap(pair -> Arrays.asList(pair._1, pair._2))
                 .sortBy(t -> t, true, 1)
                 .collect();

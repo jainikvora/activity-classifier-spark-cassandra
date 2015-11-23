@@ -15,6 +15,8 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.mllib.regression.LabeledPoint;
+import org.apache.log4j.Logger;
+import org.apache.log4j.Level;
 
 import java.util.*;
 
@@ -34,18 +36,22 @@ public class RecognizeActivity {
                 .set("spark.cassandra.connection.host", "127.0.0.1")
                 .setMaster("local[*]");
 
+        Logger.getLogger("org").setLevel(Level.WARN);
+        Logger.getLogger("akka").setLevel(Level.WARN);
+        Logger log = Logger.getLogger("org");
+
         JavaSparkContext sc = new JavaSparkContext(sparkConf);
 
         // retrieve data from Cassandra and create an CassandraRDD
         CassandraJavaRDD<CassandraRow> cassandraRowsRDD = javaFunctions(sc).cassandraTable("actitracker", "users");
-        //CassandraJavaRDD<CassandraRow> cassandraRowsRDD = javaFunctions(sc).cassandraTable("accelerations", "users");
         JavaRDD<Integer> users = cassandraRowsRDD.select("user_id").distinct().map(CassandraRow::toMap).map(entry -> (int) entry.get("user_id")).cache();
-
+//
         Set<Integer> user_ids = new HashSet<>(users.collect());
         List<LabeledPoint> labeledPoints = new ArrayList<>();
 
         for (Integer i : user_ids) {
             for (String activity : ACTIVITIES) {
+                log.debug("Processing user id: " + i + " --- for activity: " + activity);
                 // create bucket of sorted data by ascending timestamp by (user, activity)
                 JavaRDD<Long> times = cassandraRowsRDD.select("timestamp")
                         .where("user_id=? AND activity=?", i, activity)
@@ -53,7 +59,12 @@ public class RecognizeActivity {
                         .map(CassandraRow::toMap)
                         .map(entry -> (long) entry.get("timestamp"))
                         .cache();
-                System.out.println(">>>>>>>>>>>>>>>>>>>>>" + times.count());
+
+                JavaRDD<CassandraRow> dataTotal = cassandraRowsRDD.select("timestamp", "acc_x", "acc_y", "acc_z")
+                        .where("user_id=? AND activity=?", i, activity)
+                        .withAscOrder().cache();
+                log.debug(">> Data row count: " + times.count());
+
                 // if data
                 if (100 < times.count()) {
 
@@ -62,11 +73,10 @@ public class RecognizeActivity {
                     //////////////////////////////////////////////////////////////////////////////
                     List<Long[]> intervals = defineWindows(times);
                     for (Long[] interval : intervals) {
+                        log.debug("Interval Start: " + interval[0] + ", Interval End: " + interval[1] + ", Number of windows: " + interval[2]);
                         for (int j = 0; j <= interval[2]; j++) {
 
-                            JavaRDD<CassandraRow> data = cassandraRowsRDD.select("timestamp", "acc_x", "acc_y", "acc_z")
-                                    .where("user_id=? AND activity=? AND timestamp < ? AND timestamp > ?", i, activity, interval[1] + j * 5000000000L, interval[1] + (j - 1) * 5000000000L)
-                                    .withAscOrder().cache();
+                            JavaRDD<CassandraRow> data = getDataIntervalData(dataTotal, interval[0], j);
 
                             if (data.count() > 0) {
                                 // transform into double array
@@ -98,7 +108,6 @@ public class RecognizeActivity {
 
                                 // Let's build LabeledPoint, the structure used in MLlib to create and a predictive model
                                 LabeledPoint labeledPoint = getLabeledPoint(activity, mean, variance, avgAbsDiff, resultant, avgTimePeak);
-
                                 labeledPoints.add(labeledPoint);
                             }
                         }
@@ -108,10 +117,9 @@ public class RecognizeActivity {
         }
 
         // ML part with the models: create model prediction and train data on it //
-        System.out.println("***********************");
-        System.out.println(labeledPoints.size());
         if (labeledPoints.size() > 0) {
 
+            log.debug("Creating models");
             // data ready to be used to build the model
             JavaRDD<LabeledPoint> data = sc.parallelize(labeledPoints);
 
@@ -129,9 +137,7 @@ public class RecognizeActivity {
             System.out.println("sample size " + data.count());
             System.out.println("Test Error Decision Tree: " + errDT);
             System.out.println("Test Error Random Forest: " + errRF);
-
         }
-
     }
 
     private static List<Long[]> defineWindows(JavaRDD<Long> times) {
@@ -148,7 +154,7 @@ public class RecognizeActivity {
         JavaPairRDD<Long, Long> jumps = PrepareData.defineJump(tsBoundariesDiff);
 
         // Now define the intervals
-        return PrepareData.defineInterval(jumps, firstElement, lastElement, 5000000000L);
+        return PrepareData.defineInterval(jumps, firstElement, lastElement, 15000L);
     }
 
     /**
@@ -187,5 +193,18 @@ public class RecognizeActivity {
         }
 
         return new LabeledPoint(label, Vectors.dense(features));
+    }
+
+    /**
+     * Get data slices based on window interval.
+     * @param data
+     * @param interval
+     * @param j
+     * @return
+     */
+    private static JavaRDD<CassandraRow> getDataIntervalData(JavaRDD<CassandraRow> data, long interval, int j) {
+        return data.filter(raw ->
+                        Long.valueOf(raw.getString("timestamp")) < interval + (j + 1) * 15000L && Long.valueOf(raw.getString("timestamp")) > interval + j * 15000L
+        );
     }
 }
