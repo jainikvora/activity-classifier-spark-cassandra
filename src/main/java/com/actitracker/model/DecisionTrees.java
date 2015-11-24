@@ -33,7 +33,7 @@ public class DecisionTrees {
         // create model
         final DecisionTreeModel model = DecisionTree.trainClassifier(trainingData, numClasses, categoricalFeaturesInfo, impurity, maxDepth, maxBins);
 
-        model.save(sc.sc(), "actitracker");
+        model.save(sc.sc(), "actitracker/decision_tree/");
 
         // Evaluate model on training instances and compute training error
         JavaPairRDD<Double, Double> predictionAndLabel = testData.mapToPair(p -> new Tuple2<>(model.predict(p.features()), p.label()));

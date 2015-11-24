@@ -127,16 +127,17 @@ public class RecognizeActivity {
             JavaRDD<LabeledPoint>[] splits = data.randomSplit(new double[]{0.6, 0.4});
             JavaRDD<LabeledPoint> trainingData = splits[0].cache();
             JavaRDD<LabeledPoint> testData = splits[1];
-
             // With DecisionTree
             double errDT = new DecisionTrees(trainingData, testData).createModel(sc);
-
             // With Random Forest
-            double errRF = new RandomForests(trainingData, testData).createModel();
+            double errRF = new RandomForests(trainingData, testData).createModel(sc);
+            // with logistic regression 
+            double errLR = new RandomForests(trainingData, testData).createModel(sc);
 
             System.out.println("sample size " + data.count());
             System.out.println("Test Error Decision Tree: " + errDT);
             System.out.println("Test Error Random Forest: " + errRF);
+            System.out.println("Test Error Logistic Regression: " + errLR);
         }
     }
 
