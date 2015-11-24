@@ -5,6 +5,7 @@ import com.actitracker.data.DataManager;
 import com.actitracker.data.ExtractFeature;
 import com.actitracker.data.PrepareData;
 import com.actitracker.model.DecisionTrees;
+import com.actitracker.model.MultinomialLogisticRegression;
 import com.actitracker.model.RandomForests;
 import com.datastax.spark.connector.japi.CassandraRow;
 import com.datastax.spark.connector.japi.rdd.CassandraJavaRDD;
@@ -131,8 +132,8 @@ public class RecognizeActivity {
             double errDT = new DecisionTrees(trainingData, testData).createModel(sc);
             // With Random Forest
             double errRF = new RandomForests(trainingData, testData).createModel(sc);
-            // with logistic regression 
-            double errLR = new RandomForests(trainingData, testData).createModel(sc);
+            // with logistic regression
+            double errLR = new MultinomialLogisticRegression(trainingData, testData).createModel(sc);
 
             System.out.println("sample size " + data.count());
             System.out.println("Test Error Decision Tree: " + errDT);
