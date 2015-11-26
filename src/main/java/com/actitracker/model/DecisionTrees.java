@@ -28,7 +28,7 @@ public class DecisionTrees {
         int numClasses = 6;
         String impurity = "gini";
         int maxDepth = 9;
-        int maxBins = 32;
+        int maxBins = 32; // atleast maximum number of categories M for given feature sets
 
         // create model
         final DecisionTreeModel model = DecisionTree.trainClassifier(trainingData, numClasses, categoricalFeaturesInfo, impurity, maxDepth, maxBins);

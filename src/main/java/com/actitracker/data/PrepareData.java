@@ -26,7 +26,7 @@ public class PrepareData {
 
     public static JavaPairRDD<Long, Long> defineJump(JavaPairRDD<Long[], Long> tsBoundaries) {
 
-        return tsBoundaries.filter(pair -> pair._2 > 300000)
+        return tsBoundaries.filter(pair -> pair._2 > Constants.jump)
                 .mapToPair(pair -> new Tuple2<>(pair._1[1], pair._1[0]));
     }
 

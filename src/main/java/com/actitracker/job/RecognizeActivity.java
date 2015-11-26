@@ -1,6 +1,7 @@
 package com.actitracker.job;
 
 
+import com.actitracker.data.Constants;
 import com.actitracker.data.DataManager;
 import com.actitracker.data.ExtractFeature;
 import com.actitracker.data.PrepareData;
@@ -18,7 +19,6 @@ import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.mllib.regression.LabeledPoint;
 import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
-
 import java.util.*;
 
 import static com.actitracker.data.ExtractFeature.*;
@@ -125,7 +125,7 @@ public class RecognizeActivity {
             JavaRDD<LabeledPoint> data = sc.parallelize(labeledPoints);
 
             // Split data into 2 sets : training (60%) and test (40%).
-            JavaRDD<LabeledPoint>[] splits = data.randomSplit(new double[]{0.6, 0.4});
+            JavaRDD<LabeledPoint>[] splits = data.randomSplit(new double[]{Constants.training, Constants.test});
             JavaRDD<LabeledPoint> trainingData = splits[0].cache();
             JavaRDD<LabeledPoint> testData = splits[1];
             // With DecisionTree
@@ -156,7 +156,7 @@ public class RecognizeActivity {
         JavaPairRDD<Long, Long> jumps = PrepareData.defineJump(tsBoundariesDiff);
 
         // Now define the intervals
-        return PrepareData.defineInterval(jumps, firstElement, lastElement, 15000L);
+        return PrepareData.defineInterval(jumps, firstElement, lastElement, Constants.interval);
     }
 
     /**
@@ -202,11 +202,11 @@ public class RecognizeActivity {
      * @param data
      * @param interval
      * @param j
-     * @return
+     * @return JavaRDD<CassandraRow> - interval data from the jump
      */
     private static JavaRDD<CassandraRow> getDataIntervalData(JavaRDD<CassandraRow> data, long interval, int j) {
         return data.filter(raw ->
-                        Long.valueOf(raw.getString("timestamp")) < interval + (j + 1) * 15000L && Long.valueOf(raw.getString("timestamp")) > interval + j * 15000L
+                        Long.valueOf(raw.getString("timestamp")) < interval + (j + 1) * Constants.interval && Long.valueOf(raw.getString("timestamp")) > interval + j * Constants.interval
         );
     }
 }
