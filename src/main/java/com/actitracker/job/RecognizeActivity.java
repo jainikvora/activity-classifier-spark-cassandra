@@ -4,7 +4,9 @@ package com.actitracker.job;
 import com.actitracker.data.DataManager;
 import com.actitracker.data.ExtractFeature;
 import com.actitracker.data.PrepareData;
+import com.actitracker.data.SampledDataDump;
 import com.actitracker.model.DecisionTrees;
+import com.actitracker.model.GradientBoostedTree;
 import com.actitracker.model.MultinomialLogisticRegression;
 import com.actitracker.model.RandomForests;
 import com.datastax.spark.connector.japi.CassandraRow;
@@ -46,10 +48,11 @@ public class RecognizeActivity {
         // retrieve data from Cassandra and create an CassandraRDD
         CassandraJavaRDD<CassandraRow> cassandraRowsRDD = javaFunctions(sc).cassandraTable("actitracker", "users");
         JavaRDD<Integer> users = cassandraRowsRDD.select("user_id").distinct().map(CassandraRow::toMap).map(entry -> (int) entry.get("user_id")).cache();
+
 //
         Set<Integer> user_ids = new HashSet<>(users.collect());
         List<LabeledPoint> labeledPoints = new ArrayList<>();
-
+        List<List<Double>> sampleList = new ArrayList<>();
         for (Integer i : user_ids) {
             for (String activity : ACTIVITIES) {
                 log.debug("Processing user id: " + i + " --- for activity: " + activity);
@@ -67,6 +70,7 @@ public class RecognizeActivity {
                 log.debug(">> Data row count: " + times.count());
 
                 // if data
+
                 if (100 < times.count()) {
 
                     //////////////////////////////////////////////////////////////////////////////
@@ -109,6 +113,7 @@ public class RecognizeActivity {
 
                                 // Let's build LabeledPoint, the structure used in MLlib to create and a predictive model
                                 LabeledPoint labeledPoint = getLabeledPoint(activity, mean, variance, avgAbsDiff, resultant, avgTimePeak);
+                                sampleList.add(getLabledPointList(activity, mean, variance, avgAbsDiff, resultant, avgTimePeak));
                                 labeledPoints.add(labeledPoint);
                             }
                         }
@@ -116,30 +121,35 @@ public class RecognizeActivity {
                 }
             }
         }
-
-        // ML part with the models: create model prediction and train data on it //
-        if (labeledPoints.size() > 0) {
-
-            log.debug("Creating models");
-            // data ready to be used to build the model
-            JavaRDD<LabeledPoint> data = sc.parallelize(labeledPoints);
-
-            // Split data into 2 sets : training (60%) and test (40%).
-            JavaRDD<LabeledPoint>[] splits = data.randomSplit(new double[]{0.6, 0.4});
-            JavaRDD<LabeledPoint> trainingData = splits[0].cache();
-            JavaRDD<LabeledPoint> testData = splits[1];
-            // With DecisionTree
-            double errDT = new DecisionTrees(trainingData, testData).createModel(sc);
-            // With Random Forest
-            double errRF = new RandomForests(trainingData, testData).createModel(sc);
-            // with logistic regression
-            double errLR = new MultinomialLogisticRegression(trainingData, testData).createModel(sc);
-
-            System.out.println("sample size " + data.count());
-            System.out.println("Test Error Decision Tree: " + errDT);
-            System.out.println("Test Error Random Forest: " + errRF);
-            System.out.println("Test Error Logistic Regression: " + errLR);
+        if(sampleList.size() > 0) {
+            System.out.println("Total Samples: " + sampleList.size());
+            SampledDataDump.saveDataToMySQL(sampleList);
         }
+        // ML part with the models: create model prediction and train data on it //
+//        if (labeledPoints.size() > 0) {
+//
+//            log.debug("Creating models");
+//            // data ready to be used to build the model
+//            JavaRDD<LabeledPoint> data = sc.parallelize(labeledPoints);
+//
+//            // Split data into 2 sets : training (60%) and test (40%).
+//            JavaRDD<LabeledPoint>[] splits = data.randomSplit(new double[]{0.6, 0.4});
+//            JavaRDD<LabeledPoint> trainingData = splits[0].cache();
+//            JavaRDD<LabeledPoint> testData = splits[1];
+//            // With DecisionTree
+//            double errDT = new DecisionTrees(trainingData, testData).createModel(sc);
+//            // With Random Forest
+//            double errRF = new RandomForests(trainingData, testData).createModel(sc);
+//            // with logistic regression
+//            double errLR = new MultinomialLogisticRegression(trainingData, testData).createModel(sc);
+//            // with gradient boosted decision trees
+//            double errGBDT = new GradientBoostedTree(trainingData, testData).createModel(sc);
+//            System.out.println("sample size " + data.count());
+//            System.out.println("Test Error Decision Tree: " + errDT);
+//            System.out.println("Test Error Random Forest: " + errRF);
+//            System.out.println("Test Error Logistic Regression: " + errLR);
+//            System.out.println("Test Error Gradient Boosted Decision Tree: " + errGBDT);
+//        }
     }
 
     private static List<Long[]> defineWindows(JavaRDD<Long> times) {
@@ -195,6 +205,37 @@ public class RecognizeActivity {
         }
 
         return new LabeledPoint(label, Vectors.dense(features));
+    }
+
+    private static List<Double> getLabledPointList(String activity, double[] mean, double[] variance, double[] avgAbsDiff, double resultant, double avgTimePeak) {
+        double label = 0.0;
+
+        if ("Jogging".equals(activity)) {
+            label = 1.0;
+        } else if ("Standing".equals(activity)) {
+            label = 2.0;
+        } else if ("Sitting".equals(activity)) {
+            label = 3.0;
+        } else if ("Upstairs".equals(activity)) {
+            label = 4.0;
+        } else if ("Downstairs".equals(activity)) {
+            label = 5.0;
+        }
+        Double[] features = new Double[]{
+                label,
+                mean[0],
+                mean[1],
+                mean[2],
+                variance[0],
+                variance[1],
+                variance[2],
+                avgAbsDiff[0],
+                avgAbsDiff[1],
+                avgAbsDiff[2],
+                resultant,
+                avgTimePeak
+        };
+        return new ArrayList<>(Arrays.asList(features));
     }
 
     /**
