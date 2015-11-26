@@ -22,7 +22,7 @@ public class DecisionTrees {
         this.testData = testData;
     }
 
-    public Double createModel(JavaSparkContext sc) {
+    public Double createModel(JavaSparkContext sc, String subfolder) {
         // parameters
         Map<Integer, Integer> categoricalFeaturesInfo = new HashMap<>();
         int numClasses = 6;
@@ -33,7 +33,7 @@ public class DecisionTrees {
         // create model
         final DecisionTreeModel model = DecisionTree.trainClassifier(trainingData, numClasses, categoricalFeaturesInfo, impurity, maxDepth, maxBins);
 
-        model.save(sc.sc(), "actitracker/decision_tree/");
+        model.save(sc.sc(), "actitracker/decision_tree_" +subfolder+ "/");
 
         // Evaluate model on training instances and compute training error
         JavaPairRDD<Double, Double> predictionAndLabel = testData.mapToPair(p -> new Tuple2<>(model.predict(p.features()), p.label()));

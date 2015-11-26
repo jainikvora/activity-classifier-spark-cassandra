@@ -27,7 +27,7 @@ public class MultinomialLogisticRegression {
         this.testData = testData;
     }
 
-    public Double createModel(JavaSparkContext sc) {
+    public Double createModel(JavaSparkContext sc, String subfolder) {
         // parameters
         Map<Integer, Integer> categoricalFeaturesInfo = new HashMap<>();
         final int numClasses = 6;
@@ -38,7 +38,7 @@ public class MultinomialLogisticRegression {
                 .setNumClasses(numClasses)
                 .run(this.trainingData.rdd());
 
-        model.save(sc.sc(), "actitracker/logistic_regression/");
+        model.save(sc.sc(), "actitracker/logistic_regression_" +subfolder+ "/");
 
         // Evaluate model on training instances and compute training error
         JavaPairRDD<Double, Double> predictionAndLabel = testData.mapToPair(p -> new Tuple2<>(model.predict(p.features()), p.label()));

@@ -24,7 +24,7 @@ public class RandomForests {
     /**
      * Train a RandomForest model
      */
-    public Double createModel(JavaSparkContext sc) {
+    public Double createModel(JavaSparkContext sc, String subfolder) {
         // parameters
         Map<Integer, Integer> categoricalFeaturesInfo = new HashMap<Integer, Integer>();
         int numTrees = 10;
@@ -36,7 +36,7 @@ public class RandomForests {
 
         // create model
         RandomForestModel model = RandomForest.trainClassifier(trainingData, numClasses, categoricalFeaturesInfo, numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins, 12345);
-         model.save(sc.sc(), "actitracker/random_forest/");
+         model.save(sc.sc(), "actitracker/random_forest_" +subfolder+ "/");
         // Evaluate model on test instances and compute test error
         JavaPairRDD<Double, Double> predictionAndLabel = testData.mapToPair(p -> new Tuple2<Double, Double>(model.predict(p.features()), p.label()));
         Double testErr = 1.0 * predictionAndLabel.filter(pl -> !pl._1().equals(pl._2())).count() / testData.count();
