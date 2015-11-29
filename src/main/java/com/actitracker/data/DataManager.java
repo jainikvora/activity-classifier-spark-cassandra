@@ -4,9 +4,6 @@ package com.actitracker.data;
 import com.datastax.spark.connector.japi.CassandraRow;
 import org.apache.spark.api.java.JavaRDD;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class DataManager {
 
     public static JavaRDD<double[]> toDouble(JavaRDD<CassandraRow> data) {

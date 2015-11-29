@@ -33,7 +33,7 @@ public class RecognizeActivity {
 
         // define Spark context
         SparkConf sparkConf = new SparkConf()
-                .setAppName("User's physical activity recognition")
+                .setAppName("Activity classifier")
                 .set("spark.cassandra.connection.host", "127.0.0.1")
                 .setMaster("local[*]");
 
