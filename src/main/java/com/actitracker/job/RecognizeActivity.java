@@ -5,7 +5,9 @@ import com.actitracker.data.Constants;
 import com.actitracker.data.DataManager;
 import com.actitracker.data.ExtractFeature;
 import com.actitracker.data.PrepareData;
+import com.actitracker.data.SampledDataDump;
 import com.actitracker.model.DecisionTrees;
+import com.actitracker.model.GradientBoostedTree;
 import com.actitracker.model.MultinomialLogisticRegression;
 import com.actitracker.model.RandomForests;
 import com.datastax.spark.connector.japi.CassandraRow;
@@ -46,10 +48,11 @@ public class RecognizeActivity {
         // retrieve data from Cassandra and create an CassandraRDD
         CassandraJavaRDD<CassandraRow> cassandraRowsRDD = javaFunctions(sc).cassandraTable("actitracker", "users");
         JavaRDD<Integer> users = cassandraRowsRDD.select("user_id").distinct().map(CassandraRow::toMap).map(entry -> (int) entry.get("user_id")).cache();
+
 //
         Set<Integer> user_ids = new HashSet<>(users.collect());
         List<LabeledPoint> labeledPoints = new ArrayList<>();
-
+        List<List<Double>> sampleList = new ArrayList<>();
         for (Integer i : user_ids) {
             for (String activity : ACTIVITIES) {
                 log.debug("Processing user id: " + i + " --- for activity: " + activity);
@@ -67,6 +70,7 @@ public class RecognizeActivity {
                 log.debug(">> Data row count: " + times.count());
 
                 // if data
+
                 if (100 < times.count()) {
 
                     //////////////////////////////////////////////////////////////////////////////
@@ -109,6 +113,7 @@ public class RecognizeActivity {
 
                                 // Let's build LabeledPoint, the structure used in MLlib to create and a predictive model
                                 LabeledPoint labeledPoint = getLabeledPoint(activity, mean, variance, avgAbsDiff, resultant, avgTimePeak);
+                                sampleList.add(getLabledPointList(activity, mean, variance, avgAbsDiff, resultant, avgTimePeak));
                                 labeledPoints.add(labeledPoint);
                             }
                         }
@@ -116,10 +121,10 @@ public class RecognizeActivity {
                 }
             }
         }
-
         // ML part with the models: create model prediction and train data on it //
         if (labeledPoints.size() > 0) {
-
+            System.out.println("Total Samples: " + sampleList.size());
+            SampledDataDump.saveDataToMySQL(sampleList);
             log.debug("Creating models");
             // data ready to be used to build the model
             JavaRDD<LabeledPoint> data = sc.parallelize(labeledPoints);
@@ -195,6 +200,37 @@ public class RecognizeActivity {
         }
 
         return new LabeledPoint(label, Vectors.dense(features));
+    }
+
+    private static List<Double> getLabledPointList(String activity, double[] mean, double[] variance, double[] avgAbsDiff, double resultant, double avgTimePeak) {
+        double label = 0.0;
+
+        if ("Jogging".equals(activity)) {
+            label = 1.0;
+        } else if ("Standing".equals(activity)) {
+            label = 2.0;
+        } else if ("Sitting".equals(activity)) {
+            label = 3.0;
+        } else if ("Upstairs".equals(activity)) {
+            label = 4.0;
+        } else if ("Downstairs".equals(activity)) {
+            label = 5.0;
+        }
+        Double[] features = new Double[]{
+                label,
+                mean[0],
+                mean[1],
+                mean[2],
+                variance[0],
+                variance[1],
+                variance[2],
+                avgAbsDiff[0],
+                avgAbsDiff[1],
+                avgAbsDiff[2],
+                resultant,
+                avgTimePeak
+        };
+        return new ArrayList<>(Arrays.asList(features));
     }
 
     /**
