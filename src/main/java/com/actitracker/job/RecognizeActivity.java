@@ -19,6 +19,8 @@ import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.mllib.regression.LabeledPoint;
 import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
+import scala.collection.immutable.Stream;
+
 import java.util.*;
 
 import static com.actitracker.data.ExtractFeature.*;
@@ -130,13 +132,21 @@ public class RecognizeActivity {
             JavaRDD<LabeledPoint> testData = splits[1];
             // With DecisionTree
             double errDT = new DecisionTrees(trainingData, testData).createModel(sc);
+
+            double errDT2 = new DecisionTrees(trainingData, testData).createModel2(sc);
+            double errDT3 = new DecisionTrees(trainingData, testData).createModel3(sc);
+            double errDT4 = new DecisionTrees(trainingData, testData).createModel4(sc);
             // With Random Forest
             double errRF = new RandomForests(trainingData, testData).createModel(sc);
             // with logistic regression
             double errLR = new MultinomialLogisticRegression(trainingData, testData).createModel(sc);
 
+            Constants.printConstants();
             System.out.println("sample size " + data.count());
-            System.out.println("Test Error Decision Tree: " + errDT);
+            System.out.println("Test Error Decision Tree 1: " + errDT);
+            System.out.println("Test Error Decision Tree 2: " + errDT2);
+            System.out.println("Test Error Decision Tree 3: " + errDT3);
+            System.out.println("Test Error Decision Tree 4: " + errDT4);
             System.out.println("Test Error Random Forest: " + errRF);
             System.out.println("Test Error Logistic Regression: " + errLR);
         }
