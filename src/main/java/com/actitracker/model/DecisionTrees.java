@@ -26,9 +26,9 @@ public class DecisionTrees {
         // parameters
         Map<Integer, Integer> categoricalFeaturesInfo = new HashMap<>();
         int numClasses = 6;
-        String impurity = "gini";
-        int maxDepth = 9;
-        int maxBins = 32;
+        String impurity = "gini"; // second option is entropy
+        int maxDepth = 9; // depth of the tree
+        int maxBins = 32; // atleast maximum number of categories M for given feature sets
 
         // create model
         final DecisionTreeModel model = DecisionTree.trainClassifier(trainingData, numClasses, categoricalFeaturesInfo, impurity, maxDepth, maxBins);

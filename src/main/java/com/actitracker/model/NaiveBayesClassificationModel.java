@@ -38,9 +38,6 @@ public class NaiveBayesClassificationModel {
                     }
                 });
 
-       // JavaPairRDD<Double, Double> predictionAndLabel = testData.mapToPair(p -> new Tuple2<>(model.predict(p.features()), p.label()));
-
-        //Double testErrDT = 1.0 * predictionAndLabel.filter(pl -> !pl._1().equals(pl._2())).count() / testData.count();
         double accuracy = predictionAndLabel.filter(new Function<Tuple2<Double, Double>, Boolean>() {
             @Override public Boolean call(Tuple2<Double, Double> pl) {
                 return pl._1().equals(pl._2());

@@ -1,6 +1,7 @@
 package com.actitracker.job;
 
 
+import com.actitracker.data.Constants;
 import com.actitracker.data.DataManager;
 import com.actitracker.data.ExtractFeature;
 import com.actitracker.data.PrepareData;
@@ -20,7 +21,6 @@ import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.mllib.regression.LabeledPoint;
 import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
-
 import java.util.*;
 
 import static com.actitracker.data.ExtractFeature.*;
@@ -35,7 +35,7 @@ public class RecognizeActivity {
 
         // define Spark context
         SparkConf sparkConf = new SparkConf()
-                .setAppName("User's physical activity recognition")
+                .setAppName("Activity classifier")
                 .set("spark.cassandra.connection.host", "127.0.0.1")
                 .setMaster("local[*]");
 
@@ -121,35 +121,30 @@ public class RecognizeActivity {
                 }
             }
         }
-        if(sampleList.size() > 0) {
+        // ML part with the models: create model prediction and train data on it //
+        if (labeledPoints.size() > 0) {
             System.out.println("Total Samples: " + sampleList.size());
             SampledDataDump.saveDataToMySQL(sampleList);
+            log.debug("Creating models");
+            // data ready to be used to build the model
+            JavaRDD<LabeledPoint> data = sc.parallelize(labeledPoints);
+
+            // Split data into 2 sets : training (60%) and test (40%).
+            JavaRDD<LabeledPoint>[] splits = data.randomSplit(new double[]{Constants.training, Constants.test});
+            JavaRDD<LabeledPoint> trainingData = splits[0].cache();
+            JavaRDD<LabeledPoint> testData = splits[1];
+            // With DecisionTree
+            double errDT = new DecisionTrees(trainingData, testData).createModel(sc);
+            // With Random Forest
+            double errRF = new RandomForests(trainingData, testData).createModel(sc);
+            // with logistic regression
+            double errLR = new MultinomialLogisticRegression(trainingData, testData).createModel(sc);
+
+            System.out.println("sample size " + data.count());
+            System.out.println("Test Error Decision Tree: " + errDT);
+            System.out.println("Test Error Random Forest: " + errRF);
+            System.out.println("Test Error Logistic Regression: " + errLR);
         }
-        // ML part with the models: create model prediction and train data on it //
-//        if (labeledPoints.size() > 0) {
-//
-//            log.debug("Creating models");
-//            // data ready to be used to build the model
-//            JavaRDD<LabeledPoint> data = sc.parallelize(labeledPoints);
-//
-//            // Split data into 2 sets : training (60%) and test (40%).
-//            JavaRDD<LabeledPoint>[] splits = data.randomSplit(new double[]{0.6, 0.4});
-//            JavaRDD<LabeledPoint> trainingData = splits[0].cache();
-//            JavaRDD<LabeledPoint> testData = splits[1];
-//            // With DecisionTree
-//            double errDT = new DecisionTrees(trainingData, testData).createModel(sc);
-//            // With Random Forest
-//            double errRF = new RandomForests(trainingData, testData).createModel(sc);
-//            // with logistic regression
-//            double errLR = new MultinomialLogisticRegression(trainingData, testData).createModel(sc);
-//            // with gradient boosted decision trees
-//            double errGBDT = new GradientBoostedTree(trainingData, testData).createModel(sc);
-//            System.out.println("sample size " + data.count());
-//            System.out.println("Test Error Decision Tree: " + errDT);
-//            System.out.println("Test Error Random Forest: " + errRF);
-//            System.out.println("Test Error Logistic Regression: " + errLR);
-//            System.out.println("Test Error Gradient Boosted Decision Tree: " + errGBDT);
-//        }
     }
 
     private static List<Long[]> defineWindows(JavaRDD<Long> times) {
@@ -166,7 +161,7 @@ public class RecognizeActivity {
         JavaPairRDD<Long, Long> jumps = PrepareData.defineJump(tsBoundariesDiff);
 
         // Now define the intervals
-        return PrepareData.defineInterval(jumps, firstElement, lastElement, 15000L);
+        return PrepareData.defineInterval(jumps, firstElement, lastElement, Constants.interval);
     }
 
     /**
@@ -243,11 +238,11 @@ public class RecognizeActivity {
      * @param data
      * @param interval
      * @param j
-     * @return
+     * @return JavaRDD<CassandraRow> - interval data from the jump
      */
     private static JavaRDD<CassandraRow> getDataIntervalData(JavaRDD<CassandraRow> data, long interval, int j) {
         return data.filter(raw ->
-                        Long.valueOf(raw.getString("timestamp")) < interval + (j + 1) * 15000L && Long.valueOf(raw.getString("timestamp")) > interval + j * 15000L
+                        Long.valueOf(raw.getString("timestamp")) < interval + (j + 1) * Constants.interval && Long.valueOf(raw.getString("timestamp")) > interval + j * Constants.interval
         );
     }
 }
